@@ -53,6 +53,14 @@ typedef enum {
 const char *lt_get_version();
 
 /**
+ * @brief Get the compilation timestamp string ("MMM DD YYYY HH:MM:SS").
+ * Kept out of the version macros so that __DATE__/__TIME__ only appear
+ * in a single translation unit (see libretiny.h); can be overridden by
+ * defining LT_BUILD_TIMESTAMP, e.g. for reproducible builds.
+ */
+const char *lt_get_build_timestamp();
+
+/**
  * @brief Get board code.
  */
 const char *lt_get_board_code();
