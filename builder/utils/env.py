@@ -162,7 +162,12 @@ def env_apply_custom_options(env: Environment, platform: PlatformBase):
     opts = platform.custom_opts.get("options", None)
     if not opts:
         return
-    header_dir = join("${BUILD_DIR}", "include")
+    # Note: deliberately not ${BUILD_DIR}, which embeds the env name; keeping
+    # the -I path identical across envs lets compiler caches (ccache with
+    # base_dir) share results between projects that differ only by env name.
+    # The headers are rewritten at the start of every build, so sequential
+    # multi-env builds each get their own options applied.
+    header_dir = join("${PROJECT_BUILD_DIR}", "include")
     real_dir = env.subst(header_dir)
     makedirs(real_dir, exist_ok=True)
 
