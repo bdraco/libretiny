@@ -17,6 +17,10 @@ int lt_main(void) {
 	lt_init_variant();
 	// print a startup banner
 	LT_BANNER();
+	// log the compile timestamp; kept out of LT_BANNER_STR (see libretiny.h)
+	// so only this one file is rebuilt when the time changes; uses LT_LOG
+	// directly, like LT_BANNER(), so it prints regardless of LT_LOGLEVEL
+	LT_LOG(LT_LEVEL_INFO, __FUNCTION__, __LINE__, "Compiled at " __DATE__ " " __TIME__);
 	// initialize C library
 	__libc_init_array();
 	// inform about the reset reason

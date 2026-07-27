@@ -27,8 +27,12 @@
 #define LT_BOARD_STR	   STRINGIFY_MACRO(LT_BOARD)
 #define GCC_VERSION_STR \
 	STRINGIFY_MACRO(__GNUC__) "." STRINGIFY_MACRO(__GNUC_MINOR__) "." STRINGIFY_MACRO(__GNUC_PATCHLEVEL__)
-#define LT_BANNER_STR                                                                                                \
-	"LibreTiny v" LT_VERSION_STR " on " LT_BOARD_STR ", compiled at " __DATE__ " " __TIME__ ", GCC " GCC_VERSION_STR \
+// Note: the banner deliberately avoids __DATE__/__TIME__. This header is
+// included by every source file, and the presence of those tokens anywhere
+// in a translation unit defeats compiler caches (ccache) and reproducible
+// builds. The compile timestamp is logged from lt_main.c instead.
+#define LT_BANNER_STR                                                         \
+	"LibreTiny v" LT_VERSION_STR " on " LT_BOARD_STR ", GCC " GCC_VERSION_STR \
 	" (-O" STRINGIFY_MACRO(__OPTIMIZE_LEVEL__) ")"
 
 // Functional macros
