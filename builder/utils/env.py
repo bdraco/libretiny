@@ -2,6 +2,7 @@
 
 import json
 import sys
+from hashlib import sha1
 from os import makedirs
 from os.path import isdir, join
 from subprocess import PIPE, Popen
@@ -165,9 +166,11 @@ def env_apply_custom_options(env: Environment, platform: PlatformBase):
     # Note: deliberately not ${BUILD_DIR}, which embeds the env name; keeping
     # the -I path identical across envs lets compiler caches (ccache with
     # base_dir) share results between projects that differ only by env name.
-    # The headers are rewritten at the start of every build, so sequential
-    # multi-env builds each get their own options applied.
-    header_dir = join("${PROJECT_BUILD_DIR}", "include")
+    # The directory is keyed on the option content instead, so envs with
+    # different options can never pick up each other's generated headers,
+    # while envs with identical options share one path.
+    opts_key = sha1(json.dumps(opts, sort_keys=True).encode()).hexdigest()[:12]
+    header_dir = join("${PROJECT_BUILD_DIR}", "include", opts_key)
     real_dir = env.subst(header_dir)
     makedirs(real_dir, exist_ok=True)
 
@@ -176,18 +179,17 @@ def env_apply_custom_options(env: Environment, platform: PlatformBase):
         options: Dict[str, str]
         # open the header file for writing
         header = header.replace("#", ".")
-        f = open(join(real_dir, header), "w")
-        f.write(f'#include_next "{header}"\n' "\n" "#pragma once\n" "\n")
-        # write all #defines
-        for k, v in options.items():
-            f.write(
-                f"// {k} = {v}\n"
-                f"#ifdef {k}\n"
-                f"#undef {k}\n"
-                f"#endif\n"
-                f"#define {k} {v}\n"
-            )
-        f.close()
+        with open(join(real_dir, header), "w") as f:
+            f.write(f'#include_next "{header}"\n' "\n" "#pragma once\n" "\n")
+            # write all #defines
+            for k, v in options.items():
+                f.write(
+                    f"// {k} = {v}\n"
+                    f"#ifdef {k}\n"
+                    f"#undef {k}\n"
+                    f"#endif\n"
+                    f"#define {k} {v}\n"
+                )
     # prepend newly created headers before any other
     env.Prepend(CPPPATH=[header_dir])
 
