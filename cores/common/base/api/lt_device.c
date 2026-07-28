@@ -8,6 +8,10 @@ const char *lt_get_version() {
 	return LT_VERSION_STR;
 }
 
+// lt_get_build_timestamp() is intentionally defined in lt_main.c -
+// it must stay in the single TU that carries __DATE__/__TIME__,
+// otherwise this file would be rebuilt (and not cacheable) every build
+
 const char *lt_get_board_code() {
 	return LT_BOARD_STR;
 }
