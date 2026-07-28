@@ -3,8 +3,8 @@
 import json
 import sys
 from hashlib import sha1
-from os import makedirs
-from os.path import isdir, join
+from os import getpid, makedirs, replace
+from os.path import isdir, isfile, join
 from subprocess import PIPE, Popen
 from typing import Dict
 
@@ -168,7 +168,10 @@ def env_apply_custom_options(env: Environment, platform: PlatformBase):
     # base_dir) share results between projects that differ only by env name.
     # The directory is keyed on the option content instead, so envs with
     # different options can never pick up each other's generated headers,
-    # while envs with identical options share one path.
+    # while envs with identical options share one path. Directories of
+    # no-longer-used option sets are left behind on purpose; they are
+    # inert (never on CPPPATH) and pruning them here would race against
+    # a concurrent build of another env.
     opts_key = sha1(json.dumps(opts, sort_keys=True).encode()).hexdigest()[:12]
     header_dir = join("${PROJECT_BUILD_DIR}", "include", opts_key)
     real_dir = env.subst(header_dir)
@@ -177,19 +180,31 @@ def env_apply_custom_options(env: Environment, platform: PlatformBase):
     for header, options in opts.items():
         header: str
         options: Dict[str, str]
-        # open the header file for writing
+        # build the header content in memory
         header = header.replace("#", ".")
-        with open(join(real_dir, header), "w") as f:
-            f.write(f'#include_next "{header}"\n' "\n" "#pragma once\n" "\n")
-            # write all #defines
-            for k, v in options.items():
-                f.write(
-                    f"// {k} = {v}\n"
-                    f"#ifdef {k}\n"
-                    f"#undef {k}\n"
-                    f"#endif\n"
-                    f"#define {k} {v}\n"
-                )
+        text = f'#include_next "{header}"\n' "\n" "#pragma once\n" "\n"
+        # write all #defines
+        for k, v in options.items():
+            text += (
+                f"// {k} = {v}\n"
+                f"#ifdef {k}\n"
+                f"#undef {k}\n"
+                f"#endif\n"
+                f"#define {k} {v}\n"
+            )
+        # the content is fully determined by the directory key, so an
+        # existing file never needs rewriting; writing through a temp file
+        # keeps the swap atomic, so a concurrent build of another env with
+        # identical options can never see a partially written header
+        path = join(real_dir, header)
+        if isfile(path):
+            with open(path, "r") as f:
+                if f.read() == text:
+                    continue
+        tmp = f"{path}.{getpid()}.tmp"
+        with open(tmp, "w") as f:
+            f.write(text)
+        replace(tmp, path)
     # prepend newly created headers before any other
     env.Prepend(CPPPATH=[header_dir])
 
