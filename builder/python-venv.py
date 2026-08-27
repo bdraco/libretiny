@@ -1,6 +1,7 @@
 # Copyright (c) Kuba Szczodrzyński 2023-09-07.
 
 import json
+import shutil
 import site
 import subprocess
 import sys
@@ -79,17 +80,22 @@ def env_configure_python_venv(env: Environment):
 
 
 def env_install_python_dependencies(env: Environment, dependencies: dict):
+    # uv (much faster than pip) is used when available, e.g. in the ESPHome docker image
+    uv_path = shutil.which("uv")
+    python_exe = env.subst("${LTPYTHONEXE}")
     try:
-        pip_output = subprocess.check_output(
-            [
-                env.subst("${LTPYTHONEXE}"),
+        if uv_path:
+            list_cmd = [uv_path, "pip", "list", "--format=json", "--python", python_exe]
+        else:
+            list_cmd = [
+                python_exe,
                 "-m",
                 "pip",
                 "list",
                 "--format=json",
                 "--disable-pip-version-check",
             ]
-        )
+        pip_output = subprocess.check_output(list_cmd)
         pip_data = json.loads(pip_output)
         packages = {p["name"]: pepver_to_semver(p["version"]) for p in pip_data}
     except:
@@ -109,10 +115,13 @@ def env_install_python_dependencies(env: Environment, dependencies: dict):
                 to_install.append(install_spec)
 
     if to_install:
+        if uv_path:
+            install_cmd = f'"{uv_path}" pip install --python "${{LTPYTHONEXE}}" -U '
+        else:
+            install_cmd = '"${LTPYTHONEXE}" -m pip install --prefer-binary -U '
         env.Execute(
             env.VerboseAction(
-                '"${LTPYTHONEXE}" -m pip install --prefer-binary -U '
-                + " ".join(to_install),
+                install_cmd + " ".join(to_install),
                 "LibreTiny: Installing Python dependencies",
             )
         )
